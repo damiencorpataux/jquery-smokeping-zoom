@@ -10,6 +10,7 @@
         init: function(options) {
             var data = $.extend({
                 // Graph margins (in pixels)
+                zoom_factor: 2,
                 margin_left: 66,
                 margin_right: 30,
                 // Data below is updated on img load
@@ -47,14 +48,24 @@
                 timestamp = methods.get_timestamp.call($this, event),
                 start = methods.get_start.call($this),
                 end = methods.get_end.call($this),
-                factor = 2,
-                dY = event.deltaY, // 1=up=zoomin
-                f = factor * dY;
+                factor = $(this).data('zoomy').zoom_factor,
+                dY = event.deltaY; // wheel delta: 1=up=zoomin, -1=down=zoomout
             // Computes graph new start/end timestamps and updates img.src
-            var new_start = Math.round(timestamp - (timestamp-start)/f),
-                new_end = Math.round(timestamp - (end-timestamp)/f),
-                url = methods.smoke_url.call($this, new_start, new_end);
-            console.log(start, end); 
+            var dST = timestamp-start,
+                dTE = end-timestamp;
+            // FIXME: we can avoid the if by using 1/factor for zoomout,
+            //        that is: f = factor^dY (coz 2^-1 = 1/2)
+            if (dY > 0) {
+                // Zoom in
+                var new_start = Math.round(timestamp - dST/factor),
+                    new_end = Math.round(timestamp + dTE/factor);
+            } else {
+                // Zoom out
+                var new_start = Math.round(timestamp - factor*dST),
+                    new_end = Math.round(timestamp + factor*dTE);
+            }
+            var url = methods.smoke_url.call($this, new_start, new_end);
+            console.log(start, end, timestamp); 
             console.log(new_start, new_end, url);
             $this.attr('src', url);
         },
@@ -125,7 +136,6 @@
             // Retrives clicked x position, and size width
             var x = event.pageX - $(this).position().left, //event.offsetX is chrome only
                 width = $(this).width();
-            console.log(start, end, x, width);
             // Translates xy to time
             var seconds_per_pixel = (end - start) / (width - l - r),
                 timestamp = parseInt(start) + Math.round((x - l) * seconds_per_pixel);
