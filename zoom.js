@@ -43,30 +43,20 @@
             data.now = Math.round(new Date().getTime() / 1000);
         },
         wheel: function(event) {
-            //FIXME: Get mandatory values for processing
             var $this = $(this),
                 timestamp = methods.get_timestamp.call($this, event),
                 start = methods.get_start.call($this),
                 end = methods.get_end.call($this),
                 factor = $(this).data('zoomy').zoom_factor,
                 dY = event.deltaY; // wheel delta: 1=up=zoomin, -1=down=zoomout
-            // Computes graph new start/end timestamps and updates img.src
+            // Computes graph new start/end timestamps
             var dST = timestamp-start,
-                dTE = end-timestamp;
-            // FIXME: we can avoid the if by using 1/factor for zoomout,
-            //        that is: f = factor^dY (coz 2^-1 = 1/2)
-            if (dY > 0) {
-                // Zoom in
-                var new_start = Math.round(timestamp - dST/factor),
-                    new_end = Math.round(timestamp + dTE/factor);
-            } else {
-                // Zoom out
-                var new_start = Math.round(timestamp - factor*dST),
-                    new_end = Math.round(timestamp + factor*dTE);
-            }
+                dTE = end-timestamp,
+                f = Math.pow(factor, dY*-1),
+                new_start = Math.round(timestamp - dST * f),
+                new_end = Math.round(timestamp + dTE * f);
+            // Updates img.src
             var url = methods.smoke_url.call($this, new_start, new_end);
-            console.log(start, end, timestamp); 
-            console.log(new_start, new_end, url);
             $this.attr('src', url);
         },
         /**
