@@ -30,6 +30,10 @@
                     var timestamp = methods.get_timestamp.call($this, event);
                     console.log('Click:', timestamp);
                 });
+                $this.error(function() {
+                    //FIXME: handle image load errors
+                    console.log('Image loading error :(');
+                });
             });
         },
         destroy: function() {
