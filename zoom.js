@@ -4,6 +4,8 @@
  * Global FIXMEs:
  * - When wheeling multiple steps at once, prevent from updating the img at each step
  *   (server load concerns).
+ * - Create a minimalistic plugin system to allow switching url connector,
+ *   allowing to parse multiple vendors urls (smokeping, nagios, cacti, cricket)
  */
 (function($) {
     var methods = {
@@ -15,6 +17,9 @@
                 margin_right: 30,
                 // Data below is updated on img load
                 now: null
+                //FIXME: start & end timestamps should also be cached (avoid regexp extraction)
+                //       image size could be cached, and used by error handler to avoid img collapse
+                //       or simply set the image size at loadtime if not defined by style, point schluss.
             }, options);
             return this.each(function() {
                 var $this = $(this);
@@ -40,7 +45,7 @@
             //FIXME: TODO
         },
         /**
-         * Updates plugin data (usually on img 'load' event)
+         * Updates plugin data (usually on img 'load' event).
          */
         update_data: function() {
             var data = $(this).data('zoomy');
@@ -66,8 +71,7 @@
         /**
          * Creates a new url from the current element.src, by replacing
          * 'start' and 'end' query parameters.
-         * This algorythms apply to smoke graphs only, and needs the start/end
-         * parameters in the graph url (yet).
+         * This algorythms apply to smoke graphs only.
          */
         smoke_url: function(start, end) {
             var $this = $(this),
@@ -85,11 +89,13 @@
             return url;
         },
         /**
-         * Returns current graph start timestamp
+         * Returns current graph start timestamp.
+         * This algorythms apply to smoke graphs only.
          */
         get_start: function() {
-            //FIXME: this could be done with the computing of now,
-            //       on image loaded event (same with get_end())
+            //FIXME: shall now be returned if start time is not found in url ?
+            //       it feels bizarre, a graph starting now...
+            //       poke the smokeping box with url trials to find out
             var $this = $(this),
                 data = $this.data('zoomy'),
                 url = $this.attr('src'),
@@ -100,7 +106,8 @@
             return start;
         },
         /**
-         * Returns current graph end timestamp
+         * Returns current graph end timestamp.
+         * This algorythms apply to smoke graphs only.
          */
         get_end: function() {
             var $this = $(this),
@@ -113,7 +120,8 @@
             return end;
         },
         /**
-         * Extract the timestamp value of the clicked point
+         * Extract the timestamp value from the occured event
+         * (from event x coordinate)
          */
         get_timestamp: function(event) {
             //FIXME: handle the case when graph url has no start and/or end
@@ -130,7 +138,7 @@
             // Retrives clicked x position, and size width
             var x = event.pageX - $(this).position().left, //event.offsetX is chrome only
                 width = $(this).width();
-            // Translates xy to time
+            // Translates x to time
             var seconds_per_pixel = (end - start) / (width - l - r),
                 timestamp = parseInt(start) + Math.round((x - l) * seconds_per_pixel);
             return timestamp;
