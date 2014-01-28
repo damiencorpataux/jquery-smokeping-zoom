@@ -1,26 +1,113 @@
 /**
  * Zoomy - jQuery plugin for zooming smokeping graphs, standalone.
  *
+ * Author: Damien Corpataux <d@mien.ch>
+ *
  * Global FIXMEs:
  * - When wheeling multiple steps at once, prevent from updating the img at each step
  *   (server load concerns).
  * - Create a minimalistic plugin system to allow switching url connector,
  *   allowing to parse multiple vendors urls (smokeping, nagios, cacti, cricket)
+ *
+ * Global ideas:
+ * - We should use ol3 + tilegraph for truly navigating graphs
  */
+
+/**
+ * Available graph connectors object.
+ *
+ * Note: connectors must implement 
+ */ 
+var connectors = {};
+
+/**
+ * Dummy connector for interface specification, and example.
+ */
+connectors.smokeping = {
+    /**
+     * Creates and returns a new url from the current element.src,
+     * by replacing 'start' and 'end' parameters.
+     */
+    url: function(start, end) {
+        return 'http://www.example.com/image.png?' + $.param({
+            start: start,
+            end: end
+        });
+    },
+    /**
+     * Returns current graph start and end timestamps,
+     * usually by parsing the image.src url and/or query string.
+     * This algorythms apply to smoke graphs only.
+     */
+    timespan: function() {
+        return {
+            start: $.now() - 600,
+            end: $.now()
+        }
+    }
+}
+
+/**
+ * Smokeping graphs connector
+ */
+connectors.smokeping = {
+    url: function(start, end) {
+        var $this = $(this),
+            data = $this.data('zoomy'),
+            url = $this.attr('src');
+        // Returns updated URL
+        if (start) {
+            if (url.match(/start=/)) url = url.replace(/start=\d*/, 'start='+start);
+            else url = url + ';start=' + start;
+        }
+        if (end) {
+            if (url.match(/end=/)) url = url.replace(/end=\d*/, 'end='+end);
+            else url = url + ';end=' + end;
+        }
+        return url;
+    },
+    timespan: function() {
+        //FIXME: shall now be returned if start time is not found in url ?
+        //       it feels bizarre, a graph starting now...
+        //       poke the smokeping box with url trials to find out
+        var $this = $(this),
+            data = $this.data('zoomy'),
+            url = $this.attr('src'),
+            now = data.now,
+            start_m = url.match(/start=(\d*)/) || [],
+            end_m = url.match(/end=(\d*)/) || [],
+            start = start_m.pop() || now,
+            end = end_m.pop() || now;
+        if (!$.isNumeric(start)) throw ('Could not extract graph start time');
+        if (!$.isNumeric(end)) throw ('Could not extract graph end time');
+        return {
+            start: start,
+            end: end
+        };
+    }
+};
+
+
 (function($) {
     var methods = {
+
+        /**
+         * Plugin constructor
+         */
         init: function(options) {
             var data = $.extend({
-                // Graph margins (in pixels)
                 zoom_factor: 2,
+                // Connector to use for url parsing/composition
+                connector: connectors.smokeping, //FIXME
+                // Graph margins (in pixels)
                 margin_left: 66,
                 margin_right: 30,
                 // Data below is updated on img load
-                now: null
-                //FIXME: start & end timestamps should also be cached (avoid regexp extraction)
-                //       image size could be cached, and used by error handler to avoid img collapse
-                //       or simply set the image size at loadtime if not defined by style, point schluss.
+                now: null,
+                start: null,
+                stop: null
             }, options);
+
             return this.each(function() {
                 var $this = $(this);
                 if ($this.prop('tagName') != 'IMG') throw ('Element must be an <img>');
@@ -44,19 +131,29 @@
         destroy: function() {
             //FIXME: TODO
         },
+
         /**
          * Updates plugin data (usually on img 'load' event).
          */
         update_data: function() {
             var data = $(this).data('zoomy');
-            data.now = Math.round(new Date().getTime() / 1000);
+            $.extend(data, {
+                now: Math.round($.now() / 1000),
+            },
+                data.connector.timespan.call($(this))
+            );
         },
+
+        /**
+         * Handles the mouse wheel event
+         */
         wheel: function(event) {
             var $this = $(this),
+                data = $this.data('zoomy'),
                 timestamp = methods.get_timestamp.call($this, event),
-                start = methods.get_start.call($this),
-                end = methods.get_end.call($this),
-                factor = $(this).data('zoomy').zoom_factor,
+                start = data.start,
+                end = data.end;
+                factor = data.zoom_factor,
                 dY = event.deltaY; // wheel delta: 1=up=zoomin, -1=down=zoomout
             // Computes graph new start/end timestamps
             var dST = timestamp-start,
@@ -65,60 +162,10 @@
                 new_start = Math.round(timestamp - dST * f),
                 new_end = Math.round(timestamp + dTE * f);
             // Updates img.src
-            var url = methods.smoke_url.call($this, new_start, new_end);
+            var url = data.connector.url.call($this, new_start, new_end);
             $this.attr('src', url);
         },
-        /**
-         * Creates a new url from the current element.src, by replacing
-         * 'start' and 'end' query parameters.
-         * This algorythms apply to smoke graphs only.
-         */
-        smoke_url: function(start, end) {
-            var $this = $(this),
-                data = $this.data('zoomy'),
-                url = $this.attr('src');
-            // Returns updated URL
-            if (start) {
-                if (url.match(/start=/)) url = url.replace(/start=\d*/, 'start='+start);
-                else url = url + ';start=' + start;
-            }
-            if (end) {
-                if (url.match(/end=/)) url = url.replace(/end=\d*/, 'end='+end);
-                else url = url + ';end=' + end;
-            }
-            return url;
-        },
-        /**
-         * Returns current graph start timestamp.
-         * This algorythms apply to smoke graphs only.
-         */
-        get_start: function() {
-            //FIXME: shall now be returned if start time is not found in url ?
-            //       it feels bizarre, a graph starting now...
-            //       poke the smokeping box with url trials to find out
-            var $this = $(this),
-                data = $this.data('zoomy'),
-                url = $this.attr('src'),
-                now = data.now,
-                start_m = url.match(/start=(\d*)/) || [],
-                start = start_m.pop() || now;
-            if (!$.isNumeric(start)) throw ('Could not extract graph start time');
-            return start;
-        },
-        /**
-         * Returns current graph end timestamp.
-         * This algorythms apply to smoke graphs only.
-         */
-        get_end: function() {
-            var $this = $(this),
-                data = $this.data('zoomy'),
-                url = $this.attr('src'),
-                now = data.now,
-                end_m = url.match(/end=(\d*)/) || [],
-                end = end_m.pop() || now;
-            if (!$.isNumeric(end)) throw ('Could not extract graph end time');
-            return end;
-        },
+
         /**
          * Extract the timestamp value from the occured event
          * (from event x coordinate)
@@ -133,8 +180,8 @@
                 r = data.margin_right;
             // Retrieves start/end params and computes new values
             var now = data.now,
-                start = methods.get_start.call($this);
-                end = methods.get_end.call($this);
+                start = data.start,
+                end = data.end;
             // Retrives clicked x position, and size width
             var x = event.pageX - $(this).position().left, //event.offsetX is chrome only
                 width = $(this).width();
@@ -144,6 +191,7 @@
             return timestamp;
         },
     }
+
     /**
      * Plugin entry point
      */
