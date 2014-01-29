@@ -115,7 +115,6 @@
             var silent = silent || false,
                 $this = $(this),
                 data = $this.data('zoomy');
-            var url = data.connector.url.call($this, start, end);
             // Triggers custom 'zoom' event
             if (!silent) $this.trigger({
                 type: 'zoomy.zoom',
@@ -186,7 +185,9 @@
                 // Gets all others synced elements
                 var others = $(elements).not($(event.target));
                 // Updates synced elements with same start/end (silently)
-                others.zoomy('update', event.start, event.end, true);
+                others.each(function(i, other) {
+                    $(other).zoomy('update', event.start, event.end, true);
+                });
             });
         }
     };

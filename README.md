@@ -3,7 +3,7 @@ jquery-smokeping-zoom
 
 jQuery javascript plugin for zooming graphs, standalone.
 
-**Demo:** http://damiencorpataux.github.io/jquery-smokeping-zoom/ (hover the graph and use your mouse-wheel)
+**Demo:** http://damiencorpataux.github.io/jquery-smokeping-zoom/ (hover the graphs and use your mouse-wheel)
 
 --
 
