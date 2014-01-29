@@ -105,20 +105,34 @@
         },
 
         /**
-         * Updates img url with the given url, saving the current url.
+         * API Method
+         * Updates img url with the given 'start' and 'end' parametes,
+         * latching the current url.
          * This is mostly used by error handler to recover last image
          * on load error.
          */
-        update_url: function(url) {
-            var $this = $(this);
-            $this.data('zoomy').last_url = $(this).attr('src');
-            $(this).attr('src', url);
+        update: function(start, end, silent) {
+            var silent = silent || false,
+                $this = $(this),
+                data = $this.data('zoomy');
+            var url = data.connector.url.call($this, start, end);
+            // Triggers custom 'zoom' event
+            if (!silent) $this.trigger({
+                type: 'zoomy.zoom',
+                start: start,
+                end: end
+            });
+            // Updates img src
+            var url = data.connector.url.call($this, start, end);
+            data.last_url = $this.attr('src');
+            $this.attr('src', url);
         },
 
         /**
          * Handles the mouse wheel event.
          */
         wheel: function(event) {
+            event.preventDefault();
             var $this = $(this),
                 data = $this.data('zoomy'),
                 timestamp = methods.get_timestamp.call($this, event),
@@ -133,8 +147,7 @@
                 new_start = Math.round(timestamp - dST * f),
                 new_end = Math.round(timestamp + dTE * f);
             // Updates img.src
-            var url = data.connector.url.call($this, new_start, new_end);
-            methods.update_url.call($this, url);
+            methods.update.call($this, new_start, new_end);
         },
 
         /**
@@ -161,6 +174,21 @@
                 timestamp = parseInt(start) + Math.round((x - l) * seconds_per_pixel);
             return timestamp;
         },
+
+        /**
+         * API Method
+         * Utility function to sync the given elements together.
+         * When one element is zoomed, the others are updated
+         * with the same timespan.
+         */ 
+        sync: function(elements) {
+            $(elements).on('zoomy.zoom', function(event) {
+                // Gets all others synced elements
+                var others = $(elements).not($(event.target));
+                // Updates synced elements with same start/end (silently)
+                others.zoomy('update', event.start, event.end, true);
+            });
+        }
     };
 
     /**
