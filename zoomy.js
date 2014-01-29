@@ -111,12 +111,17 @@
          * This is mostly used by error handler to recover last image
          * on load error.
          */
-        update: function(start, end) {
-            var $this = $(this),
+        update: function(start, end, silent) {
+            var silent = silent || false,
+                $this = $(this),
                 data = $this.data('zoomy');
             var url = data.connector.url.call($this, start, end);
             // Triggers custom 'zoom' event
-            $this.trigger('zoom', [start, end]);
+            if (!silent) $this.trigger({
+                type: 'zoomy.zoom',
+                start: start,
+                end: end
+            });
             // Updates img src
             var url = data.connector.url.call($this, start, end);
             data.last_url = $this.attr('src');
@@ -169,6 +174,21 @@
                 timestamp = parseInt(start) + Math.round((x - l) * seconds_per_pixel);
             return timestamp;
         },
+
+        /**
+         * API Method
+         * Utility function to sync the given elements together.
+         * When one element is zoomed, the others are updated
+         * with the same timespan.
+         */ 
+        sync: function(elements) {
+            $(elements).on('zoomy.zoom', function(event) {
+                // Gets all others synced elements
+                var others = $(elements).not($(event.target));
+                // Updates synced elements with same start/end (silently)
+                others.zoomy('update', event.start, event.end, true);
+            });
+        }
     };
 
     /**

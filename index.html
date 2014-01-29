@@ -1,18 +1,36 @@
 <html>
   <head>
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css" rel="stylesheet">
   </head>
-  <body>
-    <h1>Zoomy</h1>
+  <body class="container">
+    <h1 class="page-header">Zoomy examples <small>beta</small></h1>
+
+    <h2>Simple graph zoom</h2>
+    <p>Hover the graph and use the mousewheel (touch gesture is todo)</p>
     <img class="smoke-graph" src="http://oss.oetiker.ch/smokeping-demo/?displaymode=a;start=1390519937;target=Customers.BCP;hierarchy=">
+
+    <hr>
+
+    <h2>Sync'ed graphs zoom</h2>
+    <img class="smoke-graph sync" src="http://oss.oetiker.ch/smokeping-demo/?displaymode=a;start=1390519937;target=Customers.BCP;hierarchy=">
     <br>
-    <img class="smoke-graph" src="http://oss.oetiker.ch/smokeping-demo/?displaymode=a;start=1390970591;end=1391051851;target=Customers.OP.zimbox;hierarchy=">
+    <img class="smoke-graph sync" src="http://oss.oetiker.ch/smokeping-demo/?displaymode=a;start=1390970591;end=1391051851;target=Customers.OP.zimbox;hierarchy=">
+
+    <!-- jQuery libraries -->
     <script type="text/javascript" src="//code.jquery.com/jquery-2.0.3.min.js"></script>
     <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jquery-mousewheel/3.1.6/jquery.mousewheel.js"></script>
-    <script type="text/javascript" src="zoom.js"></script>
+    <!-- Zoomy plugin -->
+    <script type="text/javascript" src="zoomy.js"></script>
+
+    <!-- Actual plugin usage -->
     <script type="text/javascript">
         $( document ).ready(function() {
-            $('.smoke-graph').zoomy({connector:'smokeping', zoom_factor:6});
-            $('.smoke-graph').on('zoom', function() { console.log('zoom event:', arguments) });
+
+            // Simple zoom initialization
+            $('.smoke-graph').zoomy({connector:'smokeping'})
+
+            // Graphs sync instruction
+            $.fn.zoomy('sync', $('.sync'))
         });
     </script>
   </body>
