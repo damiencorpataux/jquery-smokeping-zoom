@@ -4,12 +4,15 @@
   <body>
     <h1>Zoomy</h1>
     <img class="smoke-graph" src="http://oss.oetiker.ch/smokeping-demo/?displaymode=a;start=1390519937;target=Customers.BCP;hierarchy=">
+    <br>
+    <img class="smoke-graph" src="http://oss.oetiker.ch/smokeping-demo/?displaymode=a;start=1390970591;end=1391051851;target=Customers.OP.zimbox;hierarchy=">
     <script type="text/javascript" src="//code.jquery.com/jquery-2.0.3.min.js"></script>
     <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jquery-mousewheel/3.1.6/jquery.mousewheel.js"></script>
     <script type="text/javascript" src="zoom.js"></script>
     <script type="text/javascript">
         $( document ).ready(function() {
             $('.smoke-graph').zoomy({connector:'smokeping', zoom_factor:6});
+            $('.smoke-graph').on('zoom', function() { console.log('zoom event:', arguments) });
         });
     </script>
   </body>

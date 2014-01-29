@@ -105,20 +105,29 @@
         },
 
         /**
-         * Updates img url with the given url, saving the current url.
+         * API Method
+         * Updates img url with the given 'start' and 'end' parametes,
+         * latching the current url.
          * This is mostly used by error handler to recover last image
          * on load error.
          */
-        update_url: function(url) {
-            var $this = $(this);
-            $this.data('zoomy').last_url = $(this).attr('src');
-            $(this).attr('src', url);
+        update: function(start, end) {
+            var $this = $(this),
+                data = $this.data('zoomy');
+            var url = data.connector.url.call($this, start, end);
+            // Triggers custom 'zoom' event
+            $this.trigger('zoom', [start, end]);
+            // Updates img src
+            var url = data.connector.url.call($this, start, end);
+            data.last_url = $this.attr('src');
+            $this.attr('src', url);
         },
 
         /**
          * Handles the mouse wheel event.
          */
         wheel: function(event) {
+            event.preventDefault();
             var $this = $(this),
                 data = $this.data('zoomy'),
                 timestamp = methods.get_timestamp.call($this, event),
@@ -133,8 +142,7 @@
                 new_start = Math.round(timestamp - dST * f),
                 new_end = Math.round(timestamp + dTE * f);
             // Updates img.src
-            var url = data.connector.url.call($this, new_start, new_end);
-            methods.update_url.call($this, url);
+            methods.update.call($this, new_start, new_end);
         },
 
         /**
