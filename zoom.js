@@ -24,21 +24,32 @@
     var methods = {
 
         /**
-         * Plugin constructor
+         * Plugin constructor.
+         *
+         * Options:
+         * - connector:    the connector name (string) to use (depending on
+         *                 your graph backend)
+         * - zoom_factor:  the zoom factor to use when zooming the graph
+         * - margin_left,
+         * - margin_right: the margins (in pixels) between the image edge and
+         *                 the graph canvas edge (used to compute zoom center)
          */
         init: function(options) {
 
             // Default options
             var options = $.extend({
                 // Connector to use for url parsing/composition
-                connector: 'smokeping',
+                connector: 'plain',
                 // Graph margins (in pixels)
                 margin_left: 66,     //FIXME: shall this be in the connector ?
                 margin_right: 30,    //       and overridable here ?
                 zoom_factor: 2
             }, options);
             // Replaces options.connector string with object
-            options.connector = connectors[options.connector];
+            if (!connectors[options.connector])
+                throw('Connector not found: '+options.connector)
+            else
+                options.connector = connectors[options.connector];
             // Plugin data object
             var data = $.extend({
                 zoom_factor: null,
@@ -48,7 +59,6 @@
                 // Data below is updated on img load (see update_data)
                 now: null,
                 start: null,
-                t: this,
                 stop: null
             }, options);
 
@@ -56,7 +66,10 @@
                 var $this = $(this);
                 if ($this.prop('tagName') != 'IMG') throw ('Element must be an <img>');
                 // Setups stuff if the plugin hasn't been initialized yet
-                if (!$this.data('zoomy')) $this.data('zoomy', data);
+                if (!$this.data('zoomy')) {
+                    $this.data('zoomy', data);
+                    methods.update_data.call($this);
+                }
                 // Events bindings
                 $this.on('load.zoomy', methods.update_data);
                 $this.on('mousewheel.zoomy', methods.wheel);
@@ -66,8 +79,15 @@
                     //console.log('Click:', timestamp);
                 });
                 $this.error(function() {
-                    //FIXME: handle image load errors
-                    console.log('Image loading error :(');
+                    // Restores last url to prevent a broken image display
+                    //FIXME: a better way it to preload the image using
+                    // new Image(), listen to its load and error events,
+                    // and display if load fired (ie. change displayed img src)
+                    // or do not touch the displayed img src if error fired.
+                    // This avoid the display glitch between error firing and
+                    // last_url loading.
+                    var last_url = $(this).data('zoomy').last_url;
+                    $(this).attr('src', last_url);
                 });
             });
         },
@@ -76,7 +96,7 @@
         },
 
         /**
-         * Updates plugin data (usually on img 'load' event).
+         * Updates plugin data (usually on plugin init and img 'load' event).
          */
         update_data: function() {
             var data = $(this).data('zoomy');
@@ -85,7 +105,18 @@
         },
 
         /**
-         * Handles the mouse wheel event
+         * Updates img url with the given url, saving the current url.
+         * This is mostly used by error handler to recover last image
+         * on load error.
+         */
+        update_url: function(url) {
+            var $this = $(this);
+            $this.data('zoomy').last_url = $(this).attr('src');
+            $(this).attr('src', url);
+        },
+
+        /**
+         * Handles the mouse wheel event.
          */
         wheel: function(event) {
             var $this = $(this),
@@ -103,11 +134,11 @@
                 new_end = Math.round(timestamp + dTE * f);
             // Updates img.src
             var url = data.connector.url.call($this, new_start, new_end);
-            $this.attr('src', url);
+            methods.update_url.call($this, url);
         },
 
         /**
-         * Extract the timestamp value from the occured event
+         * Extract the timestamp value from the occured event.
          * (from event x coordinate)
          */
         get_timestamp: function(event) {
@@ -133,7 +164,7 @@
     };
 
     /**
-     * Plugin entry point
+     * Plugin entry point.
      */
     $.fn.zoomy = function(options) {
         if (methods[options]) {
@@ -183,22 +214,63 @@
     }
 
     /**
-     * Smokeping graphs connector
+     * Plain graphs connector.
+     * This connector uses standard start and end absolute timestamps
+     * and standard querystring separator (&).
+     */
+    connectors.plain = {
+        url: function(start, end) {
+            var $this = $(this),
+                url = $this.attr('src');
+            // Returns updated URL
+            if (url.match(/start=/)) url = url.replace(/start=\d*/, 'start='+start);
+            else url = url + '&start=' + start;
+            if (url.match(/end=/)) url = url.replace(/end=\d*/, 'end='+end);
+            else url = url + '&end=' + end;
+            return url;
+        },
+        timespan: function() {
+            //FIXME: shall now be returned if start time is not found in url ?
+            //       it feels bizarre, a graph starting now...
+            var $this = $(this),
+                url = $this.attr('src'),
+                now = $this.data('zoomy').now,
+                start_m = url.match(/start=(\d*)/) || [],
+                end_m = url.match(/end=(\d*)/) || [],
+                start = start_m.pop() || now,
+                end = end_m.pop() || now;
+            if (!$.isNumeric(start)) throw ('Could not extract graph start time');
+            if (!$.isNumeric(end)) throw ('Could not extract graph end time');
+            return {
+                start: start,
+                end: end
+            };
+        }
+    };
+
+    /**
+     * Smokeping graphs connector.
+     * Based on the plain connector, it simply uses semicolons (;) instad of
+     * anmpersand (&) as querystring separator.
      */
     connectors.smokeping = {
         url: function(start, end) {
+            return connectors.plain.url.call(this, start, end).replace('&', ';');
+        },
+        //FIXME: timespan(): shall now be returned if start time is not found in url ?
+        //       it feels bizarre, a graph starting now...
+        //       poke the smokeping box with url trials to find out
+        timespan: connectors.plain.timespan
+    };
+    connectors.smokeping_backup = {
+        url: function(start, end) {
             var $this = $(this),
-                data = $this.data('zoomy'),
                 url = $this.attr('src');
             // Returns updated URL
-            if (start) {
-                if (url.match(/start=/)) url = url.replace(/start=\d*/, 'start='+start);
-                else url = url + ';start=' + start;
-            }
-            if (end) {
-                if (url.match(/end=/)) url = url.replace(/end=\d*/, 'end='+end);
-                else url = url + ';end=' + end;
-            }
+            if (url.match(/start=/)) url = url.replace(/start=\d*/, 'start='+start);
+            else url = url + ';start=' + start;
+            if (url.match(/end=/)) url = url.replace(/end=\d*/, 'end='+end);
+            else url = url + ';end=' + end;
             return url;
         },
         timespan: function() {
@@ -206,13 +278,62 @@
             //       it feels bizarre, a graph starting now...
             //       poke the smokeping box with url trials to find out
             var $this = $(this),
-                data = $this.data('zoomy'),
                 url = $this.attr('src'),
-                now = data.now,
+                now = $this.data('zoomy').now,
                 start_m = url.match(/start=(\d*)/) || [],
                 end_m = url.match(/end=(\d*)/) || [],
                 start = start_m.pop() || now,
                 end = end_m.pop() || now;
+            if (!$.isNumeric(start)) throw ('Could not extract graph start time');
+            if (!$.isNumeric(end)) throw ('Could not extract graph end time');
+            return {
+                start: start,
+                end: end
+            };
+        }
+    };
+
+    /**
+     * Cricket graphs connector
+     * Specific options:
+     * - maxrange: specifies the range limit above which the plugin will
+     *             not zoom further. Usually, to avoid cricket to return
+     *             its error image (since it doesn't send the correct
+     *             HTTP status with its response).
+     * Notes:
+     * - Cricket only takes a 'range' parameter. This limits the plugin
+     *   to displaying a graph timespan that ends {now}
+     * - When graph generation failed (eg. range too high), cricket doesn't
+     *   returns an error HTTP status (eg. 500). This forces the plugin to
+     *   implement a maxrange option that prevents from asking problematic
+     *   ranges.
+     */
+    connectors.cricket = {
+        url: function(start, end) {
+            var $this = $(this),
+                data = $this.data('zoomy'),
+                now = data.now,
+                maxrange = data.maxrange || null,
+                url = $this.attr('src');
+            // Returns updated URL
+            // FIXME: end is ignores, because cricket seems to accept only
+            //        a 'range' parameter. Thus seeting graph end time is not
+            //        available. To be checked out.
+            var range = now - start;
+            if (maxrange && range > maxrange) return;
+            if (url.match(/range=/)) url = url.replace(/range=\d*/, 'range='+range);
+            else url = url + ';range=' + range;
+            return url;
+        },
+        timespan: function() {
+            var $this = $(this),
+                data = $this.data('zoomy'),
+                url = $this.attr('src'),
+                now = data.now,
+                range_m = url.match(/range=(\d*)/) || [],
+                range = range_m.pop(),
+                start = now - range,
+                end = now;
             if (!$.isNumeric(start)) throw ('Could not extract graph start time');
             if (!$.isNumeric(end)) throw ('Could not extract graph end time');
             return {
@@ -232,14 +353,10 @@
                 url = $this.attr('src');
             // Returns updated URL
             if (url.indexOf('?') == -1) url += '?'
-            if (start) {
-                if (url.match(/start=/)) url = url.replace(/start=\d*/, 'start='+start);
-                else url = url + '&start=' + start;
-            }
-            if (end) {
-                if (url.match(/end=/)) url = url.replace(/end=\d*/, 'end='+end);
-                else url = url + '&end=' + end;
-            }
+            if (url.match(/start=/)) url = url.replace(/start=\d*/, 'start='+start);
+            else url = url + '&start=' + start;
+            if (url.match(/end=/)) url = url.replace(/end=\d*/, 'end='+end);
+            else url = url + '&end=' + end;
             return url;
         },
         timespan: function() {
