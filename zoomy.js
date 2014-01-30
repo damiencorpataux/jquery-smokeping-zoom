@@ -115,16 +115,16 @@
             var silent = silent || false,
                 $this = $(this),
                 data = $this.data('zoomy');
-            // Triggers custom 'zoom' event
-            if (!silent) $this.trigger({
-                type: 'zoomy.zoom',
-                start: start,
-                end: end
-            });
             // Updates img src
             var url = data.connector.url.call($this, start, end);
             data.last_url = $this.attr('src');
             $this.attr('src', url);
+            // Triggers custom 'zoomend' event
+            if (!silent) $this.trigger({
+                type: 'zoomy.afterupdate',
+                start: start,
+                end: end
+            });
         },
 
         /**
@@ -181,7 +181,7 @@
          * with the same timespan.
          */ 
         sync: function(elements) {
-            $(elements).on('zoomy.zoom', function(event) {
+            $(elements).on('zoomy.afterupdate', function(event) {
                 // Gets all others synced elements
                 var others = $(elements).not($(event.target));
                 // Updates synced elements with same start/end (silently)
