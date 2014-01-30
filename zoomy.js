@@ -27,12 +27,19 @@
          * Plugin constructor.
          *
          * Options:
+         *
          * - connector:    the connector name (string) to use (depending on
-         *                 your graph backend)
-         * - zoom_factor:  the zoom factor to use when zooming the graph
+         *                 your graph backend).
+         *
+         * - zoom_factor:  the zoom factor to use when zooming the graph.
+         *
          * - margin_left,
          * - margin_right: the margins (in pixels) between the image edge and
-         *                 the graph canvas edge (used to compute zoom center)
+         *                 the graph canvas edge (used to compute zoom center).
+         *
+         * - minrange,
+         *   maxrange:     specifies the range limit above which the plugin will
+         *                 not zoom in/out further. Note: range = end - start
          */
         init: function(options) {
 
@@ -43,7 +50,9 @@
                 // Graph margins (in pixels)
                 margin_left: 66,     //FIXME: shall this be in the connector ?
                 margin_right: 30,    //       and overridable here ?
-                zoom_factor: 2
+                zoom_factor: 2,
+                minrange: 1,
+                maxrange: null
             }, options);
             // Replaces options.connector string with object
             if (!connectors[options.connector])
@@ -114,9 +123,14 @@
         update: function(start, end, silent) {
             var silent = silent || false,
                 $this = $(this),
-                data = $this.data('zoomy');
-            // Updates img src
-            var url = data.connector.url.call($this, start, end);
+                data = $this.data('zoomy'),
+                url = data.connector.url.call($this, start, end);
+            // Prevents zooming beyond min/max range
+            var range = end - start,
+                min = data.minrange,
+                max = data.maxrange;
+            if (range < min || max && range > max) return;
+            // Updates img src, saving current as last_url
             data.last_url = $this.attr('src');
             $this.attr('src', url);
             // Triggers custom 'zoomend' event
@@ -324,18 +338,12 @@
 
     /**
      * Cricket graphs connector
-     * Specific options:
-     * - maxrange: specifies the range limit above which the plugin will
-     *             not zoom further. Usually, to avoid cricket to return
-     *             its error image (since it doesn't send the correct
-     *             HTTP status with its response).
      * Notes:
      * - Cricket only takes a 'range' parameter. This limits the plugin
      *   to displaying a graph timespan that ends {now}
      * - When graph generation failed (eg. range too high), cricket doesn't
-     *   returns an error HTTP status (eg. 500). This forces the plugin to
-     *   implement a maxrange option that prevents from asking problematic
-     *   ranges.
+     *   returns an error HTTP status (eg. 500). You should use the plugin
+     *   maxrange option to prevents from requesting problematic ranges.
      */
     connectors.cricket = {
         url: function(start, end) {
