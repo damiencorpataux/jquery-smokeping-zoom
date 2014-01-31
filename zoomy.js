@@ -59,21 +59,21 @@
                 throw('Connector not found: '+options.connector)
             else
                 options.connector = connectors[options.connector];
-            // Plugin data object
-            var data = $.extend({
-                zoom_factor: null,
-                connector: null,
-                margin_left: null,
-                margin_right: null,
-                // Data below is updated on img load (see update_data)
-                now: null,
-                start: null,
-                stop: null
-            }, options);
 
             return this.each(function() {
                 var $this = $(this);
                 if ($this.prop('tagName') != 'IMG') throw ('Element must be an <img>');
+                // Plugin data object
+                var data = $.extend({
+                    zoom_factor: null,
+                    connector: null,
+                    margin_left: null,
+                    margin_right: null,
+                    // Data below is updated on img load (see update_data)
+                    now: null,
+                    start: null,
+                    stop: null
+                }, options);
                 // Setups stuff if the plugin hasn't been initialized yet
                 if (!$this.data('zoomy')) {
                     $this.data('zoomy', data);
