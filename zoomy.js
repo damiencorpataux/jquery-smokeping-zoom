@@ -45,14 +45,15 @@
 
             // Default options
             var options = $.extend({
-                // Connector to use for url parsing/composition
-                connector: 'plain',
-                // Graph margins (in pixels)
-                margin_left: 66,     //FIXME: shall this be in the connector ?
-                margin_right: 30,    //       and overridable here ?
-                zoom_factor: 2,
-                minrange: 1,
-                maxrange: null
+                connector: 'smokeping', // Backend connector name (string)
+                minrange: 1,         // Min/max timespan range (in seconds)
+                maxrange: null,
+                zoom_factor: 2,      // Graph zoom factor
+                wheel_timeout: 100,  // Wheel buffer timeout
+                                     // (in milliseconds, 0=disable)
+                //FIXME: shall this be in the connector ? and overridable here ?
+                margin_left: 66,     // Left/right graph margins (in pixels)
+                margin_right: 31
             }, options);
             // Replaces options.connector string with object
             if (!connectors[options.connector])
@@ -65,36 +66,40 @@
                 if ($this.prop('tagName') != 'IMG') throw ('Element must be an <img>');
                 // Plugin data object
                 var data = $.extend({
-                    zoom_factor: null,
-                    connector: null,
-                    margin_left: null,
-                    margin_right: null,
                     // Data below is updated on img load (see update_data)
                     now: null,
                     start: null,
-                    stop: null
+                    stop: null,
+                    last_url: null
                 }, options);
                 // Setups stuff if the plugin hasn't been initialized yet
                 if (!$this.data('zoomy')) {
                     $this.data('zoomy', data);
-                    methods.update_data.call($this);
+                    //FIXME: this should be unnecessary 
+                    //       because update_data is call on img load
+                    // methods.update_data.call($this);
                 }
                 // Events bindings
                 $this.on('load.zoomy', methods.update_data);
                 $this.on('mousewheel.zoomy', methods.wheel);
                 $this.on('click.zoomy', function(event) {
-                    var $this = $(this);
-                    var timestamp = methods.get_timestamp.call($this, event);
+                    //var $this = $(this);
+                    //var timestamp = methods.get_timestamp.call($this, event);
                     //console.log('Click:', timestamp);
                 });
                 $this.error(function() {
-                    // Restores last url to prevent a broken image display
+                    // Restores last image using last_url to prevent
+                    // a broken image display
                     //FIXME: a better way it to preload the image using
                     // new Image(), listen to its load and error events,
                     // and display if load fired (ie. change displayed img src)
                     // or do not touch the displayed img src if error fired.
                     // This avoid the display glitch between error firing and
                     // last_url loading.
+                    //FIXME: keep image in place (avoid collapse) by setting style="width,height"
+                    //       temporarily until last_timespan graph is loaded.
+                    //       Check if img already has a style="", if so, save the user style=""
+                    //       and reapply it on last_timespan graph img load.
                     var last_url = $(this).data('zoomy').last_url;
                     $(this).attr('src', last_url);
                 });
@@ -148,19 +153,38 @@
             event.preventDefault();
             var $this = $(this),
                 data = $this.data('zoomy'),
-                timestamp = methods.get_timestamp.call($this, event),
-                start = data.start,
-                end = data.end;
-                factor = data.zoom_factor,
                 dY = event.deltaY; // wheel delta: 1=up=zoomin, -1=down=zoomout
-            // Computes graph new start/end timestamps
-            var dST = timestamp-start,
-                dTE = end-timestamp,
-                f = Math.pow(factor, dY*-1),
-                new_start = Math.round(timestamp - dST * f),
-                new_end = Math.round(timestamp + dTE * f);
-            // Updates img.src
-            methods.update.call($this, new_start, new_end);
+            // Wheel event buffer timeout (see issue #5)
+            var timeout = data.wheel_timeout,
+                now = $.now(), // Note: millitimestamp
+                // wheel info latch var init
+                last = data._wheel = data._wheel ? data._wheel : {};
+            // Aborts if additional wheel events occur within timeout
+            if (now - last.timestamp < timeout) clearTimeout(last.timer);
+            // Latches last event timestamp and sums wheelsteps
+            last.timestamp = now;
+            last.stepcount = (last.stepcount || 0) + dY;
+            // Launches a clearable timeout function
+            last.timer = setTimeout(function() {
+                zoom(last.stepcount);
+                last.stepcount = 0;
+            }, timeout);
+            // Actual wheel zoom logic
+            var zoom = function(dY) {
+                // Retrieves graph timespan information
+                var timestamp = methods.get_timestamp.call($this, event),
+                    start = data.start,
+                    end = data.end;
+                    factor = data.zoom_factor;
+                // Computes graph new start/end timestamps
+                var dST = timestamp-start,
+                    dTE = end-timestamp,
+                    f = Math.pow(factor, dY*-1),
+                    new_start = Math.round(timestamp - dST * f),
+                    new_end = Math.round(timestamp + dTE * f);
+                // Updates img.src
+                methods.update.call($this, new_start, new_end);
+            }
         },
 
         /**
@@ -266,9 +290,9 @@
             var $this = $(this),
                 url = $this.attr('src');
             // Returns updated URL
-            if (url.match(/start=/)) url = url.replace(/start=\d*/, 'start='+start);
+            if (url.match(/start=/)) url = url.replace(/start=[-\d]*/, 'start='+start);
             else url = url + '&start=' + start;
-            if (url.match(/end=/)) url = url.replace(/end=\d*/, 'end='+end);
+            if (url.match(/end=/)) url = url.replace(/end=[-\d]*/, 'end='+end);
             else url = url + '&end=' + end;
             return url;
         },
@@ -304,36 +328,6 @@
         //       it feels bizarre, a graph starting now...
         //       poke the smokeping box with url trials to find out
         timespan: connectors.plain.timespan
-    };
-    connectors.smokeping_backup = {
-        url: function(start, end) {
-            var $this = $(this),
-                url = $this.attr('src');
-            // Returns updated URL
-            if (url.match(/start=/)) url = url.replace(/start=\d*/, 'start='+start);
-            else url = url + ';start=' + start;
-            if (url.match(/end=/)) url = url.replace(/end=\d*/, 'end='+end);
-            else url = url + ';end=' + end;
-            return url;
-        },
-        timespan: function() {
-            //FIXME: shall now be returned if start time is not found in url ?
-            //       it feels bizarre, a graph starting now...
-            //       poke the smokeping box with url trials to find out
-            var $this = $(this),
-                url = $this.attr('src'),
-                now = $this.data('zoomy').now,
-                start_m = url.match(/start=(\d*)/) || [],
-                end_m = url.match(/end=(\d*)/) || [],
-                start = start_m.pop() || now,
-                end = end_m.pop() || now;
-            if (!$.isNumeric(start)) throw ('Could not extract graph start time');
-            if (!$.isNumeric(end)) throw ('Could not extract graph end time');
-            return {
-                start: start,
-                end: end
-            };
-        }
     };
 
     /**
@@ -382,6 +376,8 @@
 
     /**
      * rrdli graphs connector
+     * 
+     * FIXME: This is the same logic as connectors.plain, right ?
      */
     connectors.rrdli = {
         url: function(start, end) {
