@@ -70,7 +70,7 @@
                     now: null,
                     start: null,
                     stop: null,
-                    last_url: null
+                    last_timespan: null
                 }, options);
                 // Setups stuff if the plugin hasn't been initialized yet
                 if (!$this.data('zoomy')) {
@@ -88,8 +88,8 @@
                     //console.log('Click:', timestamp);
                 });
                 $this.error(function() {
-                    // Restores last image using last_url to prevent
-                    // a broken image display
+                    // Restores last image using last_timespan information
+                    // to prevent a broken image display
                     //FIXME: a better way it to preload the image using
                     // new Image(), listen to its load and error events,
                     // and display if load fired (ie. change displayed img src)
@@ -100,8 +100,8 @@
                     //       temporarily until last_timespan graph is loaded.
                     //       Check if img already has a style="", if so, save the user style=""
                     //       and reapply it on last_timespan graph img load.
-                    var last_url = $(this).data('zoomy').last_url;
-                    $(this).attr('src', last_url);
+                    var last_timespan = $(this).data('zoomy').last_timespan;
+                    methods.update.call($(this), last_timespan.start, last_timespan.end);
                 });
             });
         },
@@ -115,7 +115,10 @@
         update_data: function() {
             var data = $(this).data('zoomy');
             data.now = Math.round($.now() / 1000);
-            $.extend(data, data.connector.timespan.call($(this)));
+            var timespan = data.connector.timespan.call($(this));
+            $.extend(data, timespan);
+            // Saves last timespan, used by img load error handler
+            data.last_timespan = timespan;
         },
 
         /**
@@ -135,8 +138,7 @@
                 min = data.minrange,
                 max = data.maxrange;
             if (range < min || max && range > max) return;
-            // Updates img src, saving current as last_url
-            data.last_url = $this.attr('src');
+            // Updates img src
             $this.attr('src', url);
             // Triggers custom 'zoomend' event
             if (!silent) $this.trigger({
