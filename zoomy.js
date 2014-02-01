@@ -82,6 +82,7 @@
                 // Events bindings
                 $this.on('load.zoomy', methods.update_data);
                 $this.on('mousewheel.zoomy', methods.wheel);
+                $this.swipe(methods.pinch());
                 $this.on('click.zoomy', function(event) {
                     //var $this = $(this);
                     //var timestamp = methods.get_timestamp.call($this, event);
@@ -146,14 +147,40 @@
             });
         },
 
+        pinch: function() {
+            return {
+                pinchStatus: function(event, phase, direction, distance, duration, fingerCount, scale) {
+                    var $this = $(this),
+                        data = $this.data('zoomy'),
+                        //factor = data.zoom_factor, //FIXME: it's only for wheel, actually
+                        //FIXME: zooms on graph center for now
+                        center = Math.round(data.end - (data.end - data.start) / 2),
+                        range = data.end - data.start,
+                        new_range = range * 1/scale; //FIXME: why is scale inverted ?
+                    //FIXME: retrieve and use pinch center pixel
+                    //console.log('pinch', arguments);
+                    new_start = Math.round(center - (new_range/2));
+                    new_end = Math.round(center + (new_range/2));
+                    //console.log(scale, range, new_range, center, new_start, new_end);
+                    //FIXME: too many requests
+                    methods.update.call($this, new_start, new_end);
+                },
+                fingers: 2
+            }
+        },
+
         /**
          * Handles the mouse wheel event.
+         * FIXME: factorize the buffer to reuse it for wheel and pinch
          */
         wheel: function(event) {
             event.preventDefault();
             var $this = $(this),
                 data = $this.data('zoomy'),
                 dY = event.deltaY; // wheel delta: 1=up=zoomin, -1=down=zoomout
+            // Ignores long touchpad finger-scroll length
+            // FIXME: tested on: Macbook, Mountain Lion
+            if (Math.abs(dY)>1) dY = 0;
             // Wheel event buffer timeout (see issue #5)
             var timeout = data.wheel_timeout,
                 now = $.now(), // Note: millitimestamp
