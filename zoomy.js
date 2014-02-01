@@ -154,12 +154,15 @@
                         data = $this.data('zoomy'),
                         //factor = data.zoom_factor, //FIXME: it's only for wheel, actually
                         //FIXME: zooms on graph center for now
-                        timestamp = Math.round(data.end - (data.end - data.start) / 2);
+                        center = Math.round(data.end - (data.end - data.start) / 2),
+                        range = data.end - data.start,
+                        new_range = range * 1/scale; //FIXME: why is scale inverted ?
                     //FIXME: retrieve and use pinch center pixel
-                    console.log('pinch', arguments);
-                    new_start = Math.round(timestamp * (1 + scale));
-                    new_end = Math.round(timestamp * (1 - scale));
-                    alert(new_start+', '+new_end);
+                    //console.log('pinch', arguments);
+                    new_start = Math.round(center - (new_range/2));
+                    new_end = Math.round(center + (new_range/2));
+                    //console.log(scale, range, new_range, center, new_start, new_end);
+                    //FIXME: too many requests
                     methods.update.call($this, new_start, new_end);
                 },
                 fingers: 2
