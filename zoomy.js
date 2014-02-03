@@ -73,16 +73,12 @@
                     last_url: null
                 }, options);
                 // Setups stuff if the plugin hasn't been initialized yet
-                if (!$this.data('zoomy')) {
-                    $this.data('zoomy', data);
-                    //FIXME: this should be unnecessary 
-                    //       because update_data is call on img load
-                    // methods.update_data.call($this);
-                }
+                if (!$this.data('zoomy') $this.data('zoomy', data);
                 // Events bindings
                 $this.on('load.zoomy', methods.update_data);
                 $this.on('mousewheel.zoomy', methods.mousewheel);
                 $this.on('mousedown.zoomy mouseup.zoomy', methods.mousedrag);
+                $this.on('touchstart.zoomy touchend.zoomy', methods.touch);
                 $this.error(function() {
                     // Restores last image using last_url to prevent
                     // a broken image display
@@ -122,6 +118,9 @@
          * on load error.
          */
         update: function(start, end, silent) {
+            if (!$.isNumeric(start) || !$.isNumeric(end))
+                throw(['update(): Invalid values -',
+                       'start:', start, 'end:', end].join(' '));
             var silent = silent || false,
                 $this = $(this),
                 data = $this.data('zoomy'),
@@ -140,6 +139,34 @@
                 start: start,
                 end: end
             });
+        },
+
+        /**
+         * Handle touch event.
+         * FIXME: this breaks mouse gestures...
+         * FIXME: only swipe for now, i guess a lib shoulb be used to support
+         *        both swipe and touch painlessly. 
+         */
+        touch: function(event) {
+            event.preventDefault();
+            var $this = $(this),
+                data = $this.data('zoomy'),
+                e = event.originalEvent;
+            // Ignores anything beyong 1 finger touch
+            if (e.touches.length > 1) return;
+            if (event.type == 'touchstart') {
+                data.touch_x = e.touches[0].pageX;
+            }
+            if (event.type == 'touchend') {
+                var x = e.changedTouches[0].pageX;
+                    diff = methods.get_timestamp.call($this, x)
+                         - methods.get_timestamp.call($this, data.touch_x);
+                delete data.touch_x;
+                methods.update.call($this,
+                                    data.start - diff,
+                                    data.end - diff
+                );
+            }
         },
 
         /**
