@@ -82,11 +82,7 @@
                 // Events bindings
                 $this.on('load.zoomy', methods.update_data);
                 $this.on('mousewheel.zoomy', methods.wheel);
-                $this.on('click.zoomy', function(event) {
-                    //var $this = $(this);
-                    //var timestamp = methods.get_timestamp.call($this, event);
-                    //console.log('Click:', timestamp);
-                });
+                $this.on('mousedown.zoomy mouseup.zoomy', methods.mousedrag);
                 $this.error(function() {
                     // Restores last image using last_url to prevent
                     // a broken image display
@@ -147,9 +143,32 @@
         },
 
         /**
+         * Handles mouse drag event.
+         */
+        mousedrag: function(event) {
+            event.preventDefault();
+            var $this = $(this),
+                data = $this.data('zoomy');
+            if (event.type == 'mousedown') {
+                // Latches last mousedown x coordinate
+                data.mousedrag_x = event.pageX;
+            }
+            if (event.type == 'mouseup') {
+                // Note: we do not use get_x() here because
+                //       we don't mind offset, we want the diff
+                var diff = methods.get_timestamp.call($this, event.pageX)
+                         - methods.get_timestamp.call($this, data.mousedrag_x);
+                delete data_mousedrag;
+                var new_start = data.start - diff,
+                    new_end = data.end - diff;
+                methods.update.call($this, new_start, new_end);
+            }
+        },
+
+        /**
          * Handles the mouse wheel event.
          */
-        wheel: function(event) {
+        mousewheel: function(event) {
             event.preventDefault();
             var $this = $(this),
                 data = $this.data('zoomy'),
@@ -172,7 +191,7 @@
             // Actual wheel zoom logic
             var zoom = function(dY) {
                 // Retrieves graph timespan information
-                var timestamp = methods.get_timestamp.call($this, event),
+                var timestamp = methods.get_timestamp.call($this, methods.get_x(event)),
                     start = data.start,
                     end = data.end;
                     factor = data.zoom_factor;
@@ -188,28 +207,35 @@
         },
 
         /**
-         * Extract the timestamp value from the occured event.
-         * (from event x coordinate)
+         * Extracts and returns the timestamp value from the given x coord
+         * (x is the pixel coordinate relative to the <img> element,
+         *  you might want to use get_x(event)).
          */
-        get_timestamp: function(event) {
+        get_timestamp: function(x) {
             //FIXME: handle the case when graph url has no start and/or end
             //       (test which of start/stop missing combinations are valid)
             var $this = $(this),
                 data = $this.data('zoomy'),
                 url = $this.attr('src'),
+                width = $(this).width(),
                 l = data.margin_left,
                 r = data.margin_right;
             // Retrieves start/end params and computes new values
             var now = data.now,
                 start = data.start,
                 end = data.end;
-            // Retrives clicked x position, and size width
-            var x = event.pageX - $(this).position().left, //event.offsetX is chrome only
-                width = $(this).width();
             // Translates x to time
             var seconds_per_pixel = (end - start) / (width - l - r),
                 timestamp = parseInt(start) + Math.round((x - l) * seconds_per_pixel);
             return timestamp;
+        },
+
+        /**
+         * Returns the x coordinate relative to the <img> from the given event
+         */
+        get_x: function(event) {
+            // NOTE: event.offsetX is chrome only
+            return event.pageX - $(event.target).position().left;
         },
 
         /**
@@ -309,8 +335,8 @@
             if (!$.isNumeric(start)) throw ('Could not extract graph start time');
             if (!$.isNumeric(end)) throw ('Could not extract graph end time');
             return {
-                start: start,
-                end: end
+                start: parseInt(start),
+                end: parseInt(end)
             };
         }
     };
@@ -368,8 +394,8 @@
             if (!$.isNumeric(start)) throw ('Could not extract graph start time');
             if (!$.isNumeric(end)) throw ('Could not extract graph end time');
             return {
-                start: start,
-                end: end
+                start: parseInt(start),
+                end: parseInt(end)
             };
         }
     };
@@ -409,15 +435,15 @@
             }
             if (!start) return {
                 start: Math.round($.now() / 1000) - 600,
-                end: end
+                end: parseInt(end)
             }
             // NOTE: an end without a start is impossible by design:
             //       the graph url pattern does not allow it
             //if (!$.isNumeric(start)) throw ('Could not extract graph start time');
             //if (!$.isNumeric(end)) throw ('Could not extract graph end time');
             return {
-                start: start,
-                end: end
+                start: parseInt(start),
+                end: parseInt(end)
             };
         }
     }
