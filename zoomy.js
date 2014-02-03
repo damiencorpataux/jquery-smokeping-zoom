@@ -73,7 +73,8 @@
                     last_url: null
                 }, options);
                 // Setups stuff if the plugin hasn't been initialized yet
-                if (!$this.data('zoomy') $this.data('zoomy', data);
+                if ($this.data('zoomy')) return;
+                $this.data('zoomy', data);
                 // Events bindings
                 $this.on('load.zoomy', methods.update_data);
                 $this.on('mousewheel.zoomy', methods.mousewheel);
@@ -98,7 +99,9 @@
             });
         },
         destroy: function() {
-            //FIXME: TODO
+            $this.unbind('load.zoomy', methods.update_data);
+            $this.unbind('mousewheel.zoomy', methods.mousewheel);
+            $this.unbind('mousedown.zoomy mouseup.zoomy', methods.mousedrag);
         },
 
         /**
@@ -374,6 +377,8 @@
      * anmpersand (&) as querystring separator.
      */
     connectors.smokeping = {
+        //FIXME: set a default 'maxrange' according backend behaviour
+        //       to avoid unnecessary requests.
         url: function(start, end) {
             return connectors.plain.url.call(this, start, end).replace('&', ';');
         },
